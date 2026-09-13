@@ -99,6 +99,18 @@ export type Checkin = {
   created_at: string;
 };
 
+export type PlanTask = 'breathing' | 'walk' | 'water' | 'exercise' | 'reading';
+
+export type DailyPlanItem = {
+  id: string;
+  user_id: string;
+  on_date: string;
+  task: PlanTask;
+  completed: boolean;
+  completed_at: string | null;
+  created_at: string;
+};
+
 export type ProfileUpdate = Partial<
   Pick<Profile, 'display_name' | 'avatar_url' | 'date_of_birth' | 'timezone' | 'locale' | 'onboarding_completed_at'>
 >;
@@ -212,6 +224,21 @@ export interface Database {
           },
         ];
       };
+      daily_plan_items: {
+        Row: DailyPlanItem;
+        // completed_at is server-set by a trigger — never accepted from the client.
+        Insert: Pick<DailyPlanItem, 'user_id' | 'task'> & Partial<Pick<DailyPlanItem, 'on_date'>>;
+        Update: Pick<DailyPlanItem, 'completed'>;
+        Relationships: [
+          {
+            foreignKeyName: 'daily_plan_items_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
     };
     Views: {
       provider_directory: { Row: ProviderPublic; Relationships: [] };
@@ -229,6 +256,7 @@ export interface Database {
       provider_status: ProviderStatus;
       request_status: RequestStatus;
       mood: Mood;
+      plan_task: PlanTask;
     };
     CompositeTypes: Record<string, never>;
   };

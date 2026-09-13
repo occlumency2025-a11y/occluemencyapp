@@ -1,10 +1,12 @@
-// Providers, booking requests, sessions and daily check-ins.
+// Providers, booking requests, sessions, daily check-ins and today's plan.
 
 import { supabase } from './supabase';
 import type {
   BookingRequest,
   Checkin,
+  DailyPlanItem,
   Mood,
+  PlanTask,
   ProviderCategory,
   ProviderPublic,
   SessionRecord,
@@ -164,4 +166,52 @@ export async function getStreak(): Promise<number> {
   const { data, error } = await supabase.rpc('my_streak');
   if (error) throw error;
   return (data as number) ?? 0;
+}
+
+// --- today's plan ------------------------------------------------------
+//
+// Five fixed tasks, chosen by the team rather than the user, same as the
+// original wellness-app mock ("2/4 done"). Rows for today are created lazily
+// on first visit — see ensureTodayPlan — and a new day means a fresh,
+// unchecked set, the same pattern as checkins.
+
+export const PLAN_TASKS: { task: PlanTask; label: string; minutes: number | null }[] = [
+  { task: 'breathing', label: 'Breathing exercise', minutes: 5 },
+  { task: 'walk', label: '20-minute walk', minutes: 20 },
+  { task: 'water', label: 'Drink 6 glasses of water', minutes: null },
+  { task: 'exercise', label: '10-minute physical exercise', minutes: 10 },
+  { task: 'reading', label: '30-minute book reading', minutes: 30 },
+];
+
+/**
+ * Creates today's five rows the first time they're needed and returns all of
+ * today's plan items. Safe to call on every visit — existing rows are left
+ * untouched, so a task already checked off stays checked off.
+ */
+export async function ensureTodayPlan(userId: string): Promise<DailyPlanItem[]> {
+  const { error: insertError } = await supabase
+    .from('daily_plan_items')
+    .upsert(
+      PLAN_TASKS.map(({ task }) => ({ user_id: userId, task, on_date: todayLocal() })),
+      { onConflict: 'user_id,on_date,task', ignoreDuplicates: true }
+    );
+  if (insertError) throw insertError;
+
+  return unwrap(
+    await supabase
+      .from('daily_plan_items')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('on_date', todayLocal())
+  );
+}
+
+/** Flips one task on or off. completed_at is set by a database trigger. */
+export async function setPlanItemCompleted(
+  id: string,
+  completed: boolean
+): Promise<DailyPlanItem> {
+  return unwrap(
+    await supabase.from('daily_plan_items').update({ completed }).eq('id', id).select('*').single()
+  );
 }

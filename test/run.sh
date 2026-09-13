@@ -16,6 +16,8 @@ for f in test/00_supabase_stub.sql supabase/migrations/*.sql; do
   $PSQL -d "$DB" -f "$f" 2>&1 | grep -v '^psql.*NOTICE' || true
 done
 
-echo "-- running checks"
-$PSQL -d "$DB" -f test/10_rls_checks.sql
+for f in test/*_checks.sql; do
+  echo "-- running $f"
+  $PSQL -d "$DB" -f "$f"
+done
 echo "all checks passed"

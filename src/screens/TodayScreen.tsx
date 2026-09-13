@@ -1,17 +1,20 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Flame } from 'lucide-react';
+import { Check, Flame } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { readableError } from '@/lib/supabase';
 import {
   MOODS,
+  PLAN_TASKS,
+  ensureTodayPlan,
   getStreak,
   getTodayCheckin,
   listRecentCheckins,
   saveCheckin,
+  setPlanItemCompleted,
   todayLocal,
 } from '@/lib/pilot';
-import type { Checkin, Mood } from '@/types/database';
+import type { Checkin, DailyPlanItem, Mood } from '@/types/database';
 import { ErrorNote, Spinner } from '@/components/ui';
 
 function greeting(): string {
@@ -43,20 +46,24 @@ export default function TodayScreen() {
   const [recent, setRecent] = useState<Checkin[]>([]);
   const [streak, setStreak] = useState(0);
   const [note, setNote] = useState('');
+  const [plan, setPlan] = useState<DailyPlanItem[]>([]);
+  const [togglingTask, setTogglingTask] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!user) return;
     setError(null);
     try {
-      const [t, r, s] = await Promise.all([
+      const [t, r, s, p] = await Promise.all([
         getTodayCheckin(user.id),
         listRecentCheckins(user.id, 14),
         getStreak(),
+        ensureTodayPlan(user.id),
       ]);
       setToday(t);
       setRecent(r);
       setStreak(s);
       setNote(t?.note ?? '');
+      setPlan(p);
     } catch (err) {
       setError(readableError(err));
     } finally {
@@ -96,6 +103,24 @@ export default function TodayScreen() {
       setError(readableError(err));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function togglePlanItem(item: DailyPlanItem) {
+    if (togglingTask) return;
+    setTogglingTask(item.task);
+    setError(null);
+    // Optimistic — this is tapped repeatedly through the day and should never feel laggy.
+    const next = !item.completed;
+    setPlan((prev) => prev.map((p) => (p.id === item.id ? { ...p, completed: next } : p)));
+    try {
+      const updated = await setPlanItemCompleted(item.id, next);
+      setPlan((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    } catch (err) {
+      setPlan((prev) => prev.map((p) => (p.id === item.id ? item : p)));
+      setError(readableError(err));
+    } finally {
+      setTogglingTask(null);
     }
   }
 
@@ -188,6 +213,53 @@ export default function TodayScreen() {
             </p>
           </div>
         )}
+      </section>
+
+      {/* Today's plan */}
+      <section className="card p-5">
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 className="text-lg">Today's plan</h2>
+          <span className="shrink-0 text-sm font-semibold text-sage-700">
+            {plan.filter((p) => p.completed).length} / {PLAN_TASKS.length}
+          </span>
+        </div>
+
+        <ul className="mt-3 flex flex-col gap-1">
+          {PLAN_TASKS.map(({ task, label, minutes }) => {
+            const item = plan.find((p) => p.task === task);
+            const done = item?.completed ?? false;
+            const busy = togglingTask === task;
+            return (
+              <li key={task}>
+                <button
+                  type="button"
+                  onClick={() => item && void togglePlanItem(item)}
+                  disabled={!item || busy}
+                  aria-pressed={done}
+                  className="flex w-full items-center gap-3 rounded-xl px-2 py-2.5 text-left transition-colors hover:bg-clay-50 disabled:opacity-60"
+                >
+                  <span
+                    aria-hidden="true"
+                    className={[
+                      'flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors',
+                      done ? 'border-sage-600 bg-sage-600' : 'border-clay-300 bg-white',
+                    ].join(' ')}
+                  >
+                    {done && <Check className="h-4 w-4 text-white" strokeWidth={3} />}
+                  </span>
+                  <span
+                    className={`flex-1 text-[15px] ${done ? 'text-clay-400 line-through' : 'text-clay-800'}`}
+                  >
+                    {label}
+                  </span>
+                  {minutes !== null && (
+                    <span className="shrink-0 text-xs text-clay-400">{minutes} min</span>
+                  )}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
       </section>
 
       {/* Last 7 days */}

@@ -119,6 +119,16 @@ const CHECKINS = [
   { id: 'c4', user_id: USER_ID, on_date: daysAgo(4), mood: 'stressed', note: null, created_at: now },
 ];
 
+// Two of today's five tasks already done, so the screenshot shows real state
+// rather than an all-empty checklist.
+const PLAN_ITEMS = [
+  { id: 'pl1', user_id: USER_ID, on_date: today, task: 'breathing', completed: true, completed_at: now, created_at: now },
+  { id: 'pl2', user_id: USER_ID, on_date: today, task: 'walk', completed: true, completed_at: now, created_at: now },
+  { id: 'pl3', user_id: USER_ID, on_date: today, task: 'water', completed: false, completed_at: null, created_at: now },
+  { id: 'pl4', user_id: USER_ID, on_date: today, task: 'exercise', completed: false, completed_at: null, created_at: now },
+  { id: 'pl5', user_id: USER_ID, on_date: today, task: 'reading', completed: false, completed_at: null, created_at: now },
+];
+
 function dataFor(url) {
   const table = (url.match(/\/rest\/v1\/([a-z_]+)/) ?? [])[1];
   switch (table) {
@@ -143,6 +153,8 @@ function dataFor(url) {
       return url.includes(`on_date=eq.${today}`)
         ? CHECKINS.filter((c) => c.on_date === today)
         : CHECKINS;
+    case 'daily_plan_items':
+      return PLAN_ITEMS;
     default:
       return [];
   }

@@ -166,9 +166,13 @@ begin
   raise notice 'PASS: staff see the full provider roster';
 end $$;
 
+-- The second session is deliberately 8 days back, not 1 — a week is 7 days,
+-- so this is always in an earlier week bucket than current_date regardless
+-- of which day of the week the suite happens to run on. "Yesterday" is not
+-- reliably last week: it lands in the same bucket whenever today is Monday.
 insert into public.sessions (user_id, provider_id, held_on, fee, commission, collected) values
   ('bbbbbbbb-0000-0000-0000-000000000002', '11111111-aaaa-0000-0000-000000000001', current_date,     900, 180, true),
-  ('bbbbbbbb-0000-0000-0000-000000000002', '11111111-aaaa-0000-0000-000000000002', current_date - 1, 600, 120, true),
+  ('bbbbbbbb-0000-0000-0000-000000000002', '11111111-aaaa-0000-0000-000000000002', current_date - 8, 600, 120, true),
   ('cccccccc-0000-0000-0000-000000000003', '11111111-aaaa-0000-0000-000000000001', current_date,     900, 180, false);
 
 do $$

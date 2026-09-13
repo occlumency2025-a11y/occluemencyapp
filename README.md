@@ -14,7 +14,7 @@ row-level security) behind it. Hosted on Vercel. Runs on free tiers.
 |---|---|
 | Sign in / create account | A stable identity per user, so returning can be measured |
 | Consent gate | Shown once. Writes the consent record only when the person ticks the box |
-| Today | Daily mood check-in, a streak, and the last seven days |
+| Today | Daily mood check-in, a streak, the last seven days, and today's plan |
 | Find | The provider list — everyone in the pilot |
 | Provider page | Full bio, fee, and the request form |
 | Bookings | Pending requests and past sessions |
@@ -122,7 +122,7 @@ The SQL checks run against any local Postgres — no Supabase account needed.
 PGHOST=/tmp PGPORT=5433 ./test/run.sh
 ```
 
-21 checks, covering the parts that would be expensive to get wrong:
+32 checks, covering the parts that would be expensive to get wrong:
 
 - signup provisions a profile and settings row automatically
 - a user cannot read, update or insert another user's rows
@@ -132,6 +132,8 @@ PGHOST=/tmp PGPORT=5433 ./test/run.sh
 - the streak counts consecutive days and resets on a gap
 - commission can never exceed the session fee
 - deleting an account cascades everywhere and spares other users
+- today's plan cannot be forged: a client can't backdate `completed_at`,
+  create a duplicate task for the same day, or write another user's plan
 
 ## Smoke-testing the screens
 
@@ -152,13 +154,13 @@ node scripts/smoke.mjs
 src/
   lib/supabase.ts        the client, plus readable error messages
   lib/account.ts         auth, profile, settings, consent, export, delete
-  lib/pilot.ts           providers, booking requests, sessions, check-ins
+  lib/pilot.ts           providers, booking requests, sessions, check-ins, today's plan
   types/database.ts      schema types — keep in step with the migrations
   context/AuthContext.tsx  session, profile, settings, consent state
   components/            AppShell (tab bar) and shared UI
   screens/               the six screens plus the consent gate
 supabase/
-  migrations/            0001 accounts · 0002 data rights · 0003 pilot tables
+  migrations/            0001 accounts · 0002 data rights · 0003 pilot tables · 0004 daily plan
   seed.sql               three example providers
 test/                    SQL behaviour checks
 scripts/smoke.mjs        renders every screen and checks for runtime errors
@@ -180,6 +182,15 @@ defend.
 
 **No payments in the app.** Razorpay has no monthly fee, but forty transactions
 do not justify the integration. Collect over UPI and record the reference.
+
+**Today's plan is five fixed tasks, not a to-do list.** The list lives in code
+(`PLAN_TASKS` in `src/lib/pilot.ts`), the same way it lives in the deck's mock
+screens — nobody edits it from an admin panel, and users can't add their own
+tasks. `daily_plan_items` is created lazily: the five rows for today don't
+exist until the app asks for them on first visit, exactly like `checkins`. If
+Phase 2 wants a different list per user, or a team-editable catalogue, that's
+a real schema change — a `plan_items` table the providers pattern already
+demonstrates — not a tweak to this one.
 
 **Users can read their own `sessions` rows, commission included.** The UI does
 not show it, but someone reading the API directly would see it. For a pilot
