@@ -1,9 +1,10 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { CalendarCheck, Compass, Sun, User } from 'lucide-react';
+import { CalendarCheck, Compass, GraduationCap, Sun, User } from 'lucide-react';
 
 const TABS = [
   { to: '/', label: 'Today', Icon: Sun, end: true },
   { to: '/providers', label: 'Find', Icon: Compass, end: false },
+  { to: '/courses', label: 'Courses', Icon: GraduationCap, end: false },
   { to: '/bookings', label: 'Bookings', Icon: CalendarCheck, end: false },
   { to: '/profile', label: 'You', Icon: User, end: false },
 ];
@@ -20,7 +21,7 @@ export default function AppShell() {
         className="fixed inset-x-0 bottom-0 z-10 mx-auto w-full max-w-lg border-t border-clay-200 bg-white/95 backdrop-blur"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
-        <ul className="grid grid-cols-4">
+        <ul className="grid grid-cols-5">
           {TABS.map(({ to, label, Icon, end }) => (
             <li key={to}>
               <NavLink
