@@ -6,6 +6,7 @@ import ConsentGate from '@/screens/ConsentGate';
 import TodayScreen from '@/screens/TodayScreen';
 import ProvidersScreen from '@/screens/ProvidersScreen';
 import ProviderScreen from '@/screens/ProviderScreen';
+import CoursesScreen from '@/screens/CoursesScreen';
 import BookingsScreen from '@/screens/BookingsScreen';
 import ProfileScreen from '@/screens/ProfileScreen';
 import SetupNotice from '@/screens/SetupNotice';
@@ -32,6 +33,7 @@ function Gate() {
         <Route index element={<TodayScreen />} />
         <Route path="providers" element={<ProvidersScreen />} />
         <Route path="providers/:id" element={<ProviderScreen />} />
+        <Route path="courses" element={<CoursesScreen />} />
         <Route path="bookings" element={<BookingsScreen />} />
         <Route path="profile" element={<ProfileScreen />} />
         <Route path="*" element={<Navigate to="/" replace />} />
