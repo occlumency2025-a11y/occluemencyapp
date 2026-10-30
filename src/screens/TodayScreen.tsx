@@ -291,9 +291,14 @@ export default function TodayScreen() {
         </ul>
       </section>
 
-      <Link to="/providers" className="btn-ghost">
-        Find someone to talk to
-      </Link>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Link to="/providers" className="btn-ghost flex-1">
+          Find someone to talk to
+        </Link>
+        <Link to="/courses" className="btn-ghost flex-1">
+          Browse free courses
+        </Link>
+      </div>
     </div>
   );
 }
