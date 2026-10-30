@@ -1,9 +1,14 @@
-// Providers, booking requests, sessions, daily check-ins and today's plan.
+// Providers, booking requests, sessions, daily check-ins, today's plan and
+// free courses.
 
 import { supabase } from './supabase';
 import type {
   BookingRequest,
   Checkin,
+  CourseProgress,
+  CoursePublic,
+  CourseProgressStatus,
+  CourseTopic,
   DailyPlanItem,
   Mood,
   PlanTask,
@@ -214,4 +219,60 @@ export async function setPlanItemCompleted(
   return unwrap(
     await supabase.from('daily_plan_items').update({ completed }).eq('id', id).select('*').single()
   );
+}
+
+// --- free courses -----------------------------------------------------
+//
+// A staff-curated catalog of external courses — the content lives wherever
+// the provider already hosts it (Alison, CAFO Academy, The BCI Guys, and so
+// on); this app only stores a link and the user's own progress against it.
+// No row in course_progress means "not started" — unlike today's plan, these
+// rows are created only when a user chooses to track a course, not in
+// advance. started_at and completed_at are both server-set by a trigger.
+
+export const COURSE_TOPIC_LABELS: Record<CourseTopic, string> = {
+  neuroplasticity: 'Neuroplasticity',
+  bci: 'Brain-computer interfaces',
+  mental_wellness: 'Mental wellness',
+  mindfulness: 'Mindfulness',
+  other: 'Other',
+};
+
+export async function listCourses(): Promise<CoursePublic[]> {
+  return unwrap(
+    await supabase.from('course_directory').select('*').order('topic').order('title')
+  );
+}
+
+export async function listMyCourseProgress(userId: string): Promise<CourseProgress[]> {
+  return unwrap(
+    await supabase.from('course_progress').select('*').eq('user_id', userId)
+  );
+}
+
+/**
+ * Starts, completes, or reopens one course for this user — a single upsert
+ * covers all three, since the row's status is the only thing that changes.
+ */
+export async function setCourseProgress(
+  userId: string,
+  courseId: string,
+  status: CourseProgressStatus
+): Promise<CourseProgress> {
+  return unwrap(
+    await supabase
+      .from('course_progress')
+      .upsert({ user_id: userId, course_id: courseId, status }, { onConflict: 'user_id,course_id' })
+      .select('*')
+      .single()
+  );
+}
+
+/** "1 hr 20 min", "45 min", or "1 hr" — never "1 hr 0 min". */
+export function formatCourseLength(totalMinutes: number): string {
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours === 0) return `${minutes} min`;
+  if (minutes === 0) return `${hours} hr`;
+  return `${hours} hr ${minutes} min`;
 }
