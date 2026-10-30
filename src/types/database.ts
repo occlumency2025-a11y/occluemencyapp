@@ -111,6 +111,31 @@ export type DailyPlanItem = {
   created_at: string;
 };
 
+export type CourseTopic = 'neuroplasticity' | 'bci' | 'mental_wellness' | 'mindfulness' | 'other';
+export type CourseStatus = 'pilot' | 'paused' | 'dropped';
+export type CourseProgressStatus = 'in_progress' | 'completed';
+
+/** Safe columns only — the catalog view never exposes staff notes. */
+export type CoursePublic = {
+  id: string;
+  title: string;
+  provider: string;
+  url: string;
+  description: string | null;
+  topic: CourseTopic;
+  estimated_minutes: number | null;
+};
+
+export type CourseProgress = {
+  id: string;
+  user_id: string;
+  course_id: string;
+  status: CourseProgressStatus;
+  started_at: string;
+  completed_at: string | null;
+  created_at: string;
+};
+
 export type ProfileUpdate = Partial<
   Pick<Profile, 'display_name' | 'avatar_url' | 'date_of_birth' | 'timezone' | 'locale' | 'onboarding_completed_at'>
 >;
@@ -239,10 +264,39 @@ export interface Database {
           },
         ];
       };
+      courses: {
+        Row: CoursePublic & { status: CourseStatus; notes: string | null };
+        Insert: Partial<CoursePublic & { status: CourseStatus; notes: string | null }>;
+        Update: Partial<CoursePublic & { status: CourseStatus; notes: string | null }>;
+        Relationships: [];
+      };
+      course_progress: {
+        Row: CourseProgress;
+        // started_at and completed_at are server-set by a trigger — never accepted from the client.
+        Insert: Pick<CourseProgress, 'user_id' | 'course_id'> & Partial<Pick<CourseProgress, 'status'>>;
+        Update: Pick<CourseProgress, 'status'>;
+        Relationships: [
+          {
+            foreignKeyName: 'course_progress_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'course_progress_course_id_fkey';
+            columns: ['course_id'];
+            isOneToOne: false;
+            referencedRelation: 'courses';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
     };
     Views: {
       provider_directory: { Row: ProviderPublic; Relationships: [] };
       current_consents: { Row: Omit<ConsentRecord, 'id'>; Relationships: [] };
+      course_directory: { Row: CoursePublic; Relationships: [] };
     };
     Functions: {
       export_my_data: { Args: Record<string, never>; Returns: unknown };
@@ -257,6 +311,9 @@ export interface Database {
       request_status: RequestStatus;
       mood: Mood;
       plan_task: PlanTask;
+      course_topic: CourseTopic;
+      course_status: CourseStatus;
+      course_progress_status: CourseProgressStatus;
     };
     CompositeTypes: Record<string, never>;
   };
