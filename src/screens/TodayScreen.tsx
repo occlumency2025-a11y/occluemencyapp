@@ -1,21 +1,26 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Check, Flame } from 'lucide-react';
+import { Check, Flame, Share2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { readableError } from '@/lib/supabase';
 import {
   MOODS,
   PLAN_TASKS,
   ensureTodayPlan,
+  formatRecapShareText,
   getStreak,
   getTodayCheckin,
+  getWeeklyRecap,
   listRecentCheckins,
   saveCheckin,
   setPlanItemCompleted,
+  syncMyBadges,
   todayLocal,
 } from '@/lib/pilot';
+import type { WeeklyRecap } from '@/lib/pilot';
 import type { Checkin, DailyPlanItem, Mood } from '@/types/database';
 import { ErrorNote, Spinner } from '@/components/ui';
+import { pickMoodQuote } from '@/lib/quotes';
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -48,32 +53,58 @@ export default function TodayScreen() {
   const [note, setNote] = useState('');
   const [plan, setPlan] = useState<DailyPlanItem[]>([]);
   const [togglingTask, setTogglingTask] = useState<string | null>(null);
+  const [recap, setRecap] = useState<WeeklyRecap | null>(null);
+  const [shared, setShared] = useState(false);
 
   const load = useCallback(async () => {
     if (!user) return;
     setError(null);
     try {
-      const [t, r, s, p] = await Promise.all([
+      const [t, r, s, p, w] = await Promise.all([
         getTodayCheckin(user.id),
         listRecentCheckins(user.id, 14),
         getStreak(),
         ensureTodayPlan(user.id),
+        getWeeklyRecap(user.id),
       ]);
       setToday(t);
       setRecent(r);
       setStreak(s);
       setNote(t?.note ?? '');
       setPlan(p);
+      setRecap(w);
     } catch (err) {
       setError(readableError(err));
     } finally {
       setLoading(false);
     }
+    // A milestone from before badges existed, or from an earlier visit this
+    // session, is picked up here too — sync failing should never break the
+    // rest of the page, so it's fire-and-forget.
+    void syncMyBadges().catch(() => {});
   }, [user]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  async function shareRecap() {
+    if (!recap) return;
+    const text = formatRecapShareText(recap, profile?.display_name);
+    if (navigator.share) {
+      try {
+        await navigator.share({ text });
+      } catch {
+        // User backed out of the share sheet — nothing to report.
+      }
+      return;
+    }
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(text);
+      setShared(true);
+      setTimeout(() => setShared(false), 2000);
+    }
+  }
 
   async function pick(mood: Mood) {
     if (!user || saving) return;
@@ -129,6 +160,9 @@ export default function TodayScreen() {
   const week = lastSevenDays();
   const byDate = new Map(recent.map((c) => [c.on_date, c]));
   const firstName = profile?.display_name?.split(' ')[0] ?? 'there';
+  // Seeded on the check-in's own date, not today's render time, so the same
+  // quote holds all day and only changes with a new day's check-in.
+  const todaysQuote = today ? pickMoodQuote(today.mood, today.on_date) : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -193,6 +227,17 @@ export default function TodayScreen() {
             );
           })}
         </div>
+
+        {todaysQuote && (
+          <div className="mt-4 rounded-xl bg-sage-50 p-4">
+            <p className="text-[15px] italic leading-relaxed text-clay-700">
+              &ldquo;{todaysQuote.text}&rdquo;
+            </p>
+            <p className="mt-2 text-xs text-clay-400">
+              {todaysQuote.author} &middot; {todaysQuote.source}
+            </p>
+          </div>
+        )}
 
         {today && (
           <div className="mt-4">
@@ -261,6 +306,46 @@ export default function TodayScreen() {
           })}
         </ul>
       </section>
+
+      {/* Weekly recap — the "Strava weekly summary" of the pilot. */}
+      {recap && (
+        <section className="card p-5">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="text-lg">Your week</h2>
+            <button
+              type="button"
+              onClick={() => void shareRecap()}
+              className="flex shrink-0 items-center gap-1.5 text-[13px] font-semibold text-sage-700"
+            >
+              <Share2 className="h-3.5 w-3.5" aria-hidden="true" />
+              {shared ? 'Copied' : 'Share'}
+            </button>
+          </div>
+          <dl className="mt-4 grid grid-cols-2 gap-3">
+            <div className="rounded-xl bg-sage-50 p-3">
+              <dd className="font-display text-2xl leading-none text-clay-900">{recap.checkins}</dd>
+              <dt className="mt-1 text-xs text-clay-500">Check-ins</dt>
+            </div>
+            <div className="rounded-xl bg-sage-50 p-3">
+              <dd className="font-display text-2xl leading-none text-clay-900">
+                {recap.planTasksCompleted}
+              </dd>
+              <dt className="mt-1 text-xs text-clay-500">Plan tasks done</dt>
+            </div>
+            <div className="rounded-xl bg-sage-50 p-3">
+              <dd className="font-display text-2xl leading-none text-clay-900">
+                {recap.coursesCompleted}
+              </dd>
+              <dt className="mt-1 text-xs text-clay-500">Courses finished</dt>
+            </div>
+            <div className="rounded-xl bg-sage-50 p-3">
+              <dd className="font-display text-2xl leading-none text-clay-900">{recap.streak}</dd>
+              <dt className="mt-1 text-xs text-clay-500">Day streak</dt>
+            </div>
+          </dl>
+          <p className="mt-3 text-xs text-clay-400">Rolling seven days, including today.</p>
+        </section>
+      )}
 
       {/* Last 7 days */}
       <section>
